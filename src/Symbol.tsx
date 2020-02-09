@@ -1,10 +1,10 @@
-import React, { useState } from "react"
+import React from "react"
 import styled from "styled-components"
+import Draggable, {DraggableProps}  from './Draggable'
 
-const Border = styled.rect<{ isDragging: boolean }>`
+const Border = styled.rect`
   stroke: #f00;
   fill: #fff;
-  cursor: ${({ isDragging }) => isDragging ? 'grabbing' : 'grab'};
 `
 
 const Text = styled.text`
@@ -16,30 +16,16 @@ const Text = styled.text`
   pointer-events: none;
 `
 
-type Props = { position: [number, number], onChangePosition: (newPosition: [number, number]) => void }
+const Symbol: React.FC<DraggableProps> = ({ position, onChangePosition, children }) => {
 
-const Symbol: React.FC<Props> = ({ position, onChangePosition, children }) => {
-  const [isDragging, setIsDragging] = useState(false)
-  const [startPos, setStartPos] = useState([0,0])
-  const onMouseMove = (e: React.MouseEvent) => onChangePosition([position[0] + e.movementX, position[1] + e.movementY])
-  const onTouchMove = (e: React.TouchEvent) => onChangePosition([e.touches[0].pageX - startPos[0], e.touches[0].pageY - startPos[1]])
   return (
-    <g style={{transform: `translate(${position[0]}px, ${position[1]}px)`}}>
+    <Draggable position={position} onChangePosition={onChangePosition}>
       <Border
-        isDragging={isDragging}
         width="100"
         height="100"
-        onMouseDown={() => setIsDragging(true)}
-        onMouseUp={() => setIsDragging(false)}
-        onBlur={() => setIsDragging(false)}
-        onMouseOut={() => setIsDragging(false)}
-        onTouchStart={(e)=> { setStartPos([e.touches[0].pageX - position[0], e.touches[0].pageY - position[1]]); setIsDragging(true) }}
-        onTouchEnd={() => setIsDragging(false)}
-        onMouseMove={isDragging ? onMouseMove : undefined}
-        onTouchMove={isDragging ? onTouchMove : undefined}
       />
       <Text>{children}</Text>
-    </g>
+    </Draggable>
   )
 }
 
