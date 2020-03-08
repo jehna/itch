@@ -32,21 +32,23 @@
 
 (defonce app-state (atom {:text "Hello world!"}))
 
-(defn thing [i name]
+(defn nest-lenses [ast]
+  [ast
+   (map-indexed
+    #(nest-lenses (l/derive (comp (l/key :args) (l/nth %)) ast)) (:args @ast))])
+
+(defn node-renderer
+  [i ast]
   [:<> {:key i}
    [:rect {:width 100 :height 100 :x (* i 110) :stroke "#000" :fill "none"}]
-   [:text {:x (+ 35 (* i 110)) :y 65 :style {:font-size 50}} name]])
+   [:text {:x (+ 35 (* i 110)) :y 65 :style {:font-size 50}} (get-name @ast)]])
 
 (defn hello-world []
   [:div
    #_[:pre (with-out-str (cljs.pprint/pprint (all-items (:value @ast))))]
    [:pre (with-out-str (cljs.pprint/pprint @ast))]
    [:svg {:viewBox "0 0 1024 762" :width 1024 :height 762 :xmlns "http://www.w3.org/2000/svg"}
-    (->> @ast
-         :value
-         all-items
-         (map get-name)
-         (map-indexed thing))]])
+    (map-indexed node-renderer (flatten (nest-lenses (l/derive (l/key :value) ast))))]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))
@@ -55,4 +57,4 @@
   ;; optionally touch your app-state to force rerendering depending on
   ;; your application
   ;; (swap! app-state update-in [:__figwheel_counter] inc)
-)
+  )
