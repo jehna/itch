@@ -17,13 +17,12 @@
 (defn elide-env [env ast opts]
   (dissoc ast :env))
 (def st (cljs/empty-state))
-(def ast (atom nil))
+(defonce ast (atom nil))
 
 (defn add-coords [value]
   (->> value
-       (merge {:x 0 :y 0})
-       (l/over (l/key :args) #(map add-coords %))
-       ))
+       (merge {:x 100 :y 100})
+       (l/over (l/key :args) #(vec (map add-coords %)))))
 
 (defn add-coords-root [root]
   (l/over (l/key :value) add-coords root))
@@ -42,11 +41,11 @@
 
 (defonce app-state (atom {:text "Hello world!"}))
 
-(defn nest-lens-nodes [ast]
+(defn nest-lens-nodes [node]
   (concat
-   [ast]
+   [node]
    (map-indexed
-    #(nest-lens-nodes (l/derive (comp (l/key :args) (l/nth %)) ast)) (:args @ast))))
+    #(nest-lens-nodes (l/derive (comp (l/key :args) (l/nth %)) node)) (:args @node))))
 
 (defn nodes-to-connections
   [[from & tos]]
@@ -55,11 +54,39 @@
     (map (fn [[to]] {:from from :to to}) tos)
     (map nodes-to-connections tos))))
 
+(defn draggable
+  [position, children]
+  (let [is-dragging (atom false)
+        on-mouse-move (fn [e]
+                        (.-preventDefault e)
+                        (.-stopPropagation e)
+                        (swap! position assoc
+                               :x (+ (:x @position) (-> e .-nativeEvent .-movementX))
+                               :y (+ (:y @position) (-> e .-nativeEvent .-movementY))))]
+    (fn []
+      [:g {:on-mouse-down #(reset! is-dragging true)
+           :on-mouse-out #(reset! is-dragging false)
+           :on-mouse-up #(reset! is-dragging false)
+           :on-mouse-move (when @is-dragging on-mouse-move)
+           :style {:transform (str "translate(" (:x @position) "px, " (:y @position) "px)")}}
+
+       children])))
+
 (defn node-renderer
-  [ast]
-  [:<>
-   [:rect {:width 100 :height 100 :x (:x @ast) :y (:y @ast) :stroke "#000" :fill "none"}]
-   [:text {:x (+ 35 (:x @ast)) :y (+ 65 (:y @ast)) :style {:font-size 50}} (get-name @ast)]])
+  [node]
+    [:<> {:key (hash node)}
+     [draggable
+      node
+      [:<>
+       [:rect
+        {:width 100
+         :height 100
+         :x 50
+         :y 50
+         :stroke "#000"
+         :fill "#FFF"}]
+       [:text {:x (- (:x @node) 10) :y (+ (:y @node) 20) :style {:font-size 50}} (get-name @node)]]]
+     ])
 
 (defn connection-renderer
   [in]
@@ -71,14 +98,25 @@
                :y1 (:y @from)
                :y2 (:y @to)}]))
 
+(defn my-input [value]
+  (let [is-writeable (atom false)]
+    (fn [] [:input {:on-click #(swap! is-writeable not)
+                    :on-change (when @is-writeable #(reset! value (-> % .-target .-value)))
+                    :value @value}])))
+(def my-value (atom ""))
+
 (defn hello-world []
-  [:div
-   #_[:pre (with-out-str (cljs.pprint/pprint (all-items (:value @ast))))]
-   [:pre (with-out-str (cljs.pprint/pprint @ast))]
-   [:svg {:viewBox "0 0 1024 762" :width 1024 :height 762 :xmlns "http://www.w3.org/2000/svg"}
-    (map node-renderer (flatten (nest-lens-nodes (l/derive (l/key :value) ast))))
-    (map connection-renderer (nodes-to-connections (nest-lens-nodes (l/derive (l/key :value) ast))))
-    ]])
+  (when @ast
+    (let [nested-lenses (nest-lens-nodes (l/derive (l/key :value) ast))]
+      (fn []
+        [:div
+         #_[:pre (with-out-str (cljs.pprint/pprint (all-items (:value @ast))))]
+         [:pre (with-out-str (cljs.pprint/pprint @ast))]
+         [my-input my-value]
+         [:svg {:viewBox "0 0 1024 762" :width 1024 :height 762 :xmlns "http://www.w3.org/2000/svg"}
+          (doall (map node-renderer (flatten nested-lenses)))
+          ;(map connection-renderer (nodes-to-connections (nest-lens-nodes (l/derive (l/key :value) ast))))
+          ]]))))
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))
